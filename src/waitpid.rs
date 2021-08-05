@@ -98,12 +98,12 @@ impl Waitpid {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-struct ProcessFuture(i32);
+pub (crate) struct ProcessFuture(i32);
 
 
 
 impl ProcessFuture {
-    fn new(pid: i32) -> ProcessFuture {
+    pub fn new(pid: i32) -> ProcessFuture {
         ProcessFuture(pid)
     }
 }
@@ -125,22 +125,6 @@ mod test {
     use std::future::Future;
     use once_cell::sync::Lazy;
 
-    //fake waker purely for debug purposes
-    struct FakeWaker;
-    impl Wake for FakeWaker {
-        fn wake(self: Arc<Self>) {
-            //nothing
-        }
-    }
-    impl ProcessFuture {
-        pub fn toy_await(&mut self) -> Poll::<i32> {
-            //println!("await {:?}",self.0);
-            let fake_waker = Arc::new(FakeWaker);
-            let as_waker: Waker = fake_waker.into();
-            let mut as_context = Context::from_waker(&as_waker);
-            Pin::new(self).poll(&mut as_context)
-        }
-    }
 
     //Generally, we want our tests to run only one at a time
     pub static TEST_SEMAPHORE: Lazy<Mutex<()>> = Lazy::new(|| {
@@ -150,6 +134,7 @@ mod test {
 }
 
 #[test] fn toy_await_1() {
+    use crate::fake_waker::toy_await;
     println!("waiting on guard 1");
     let _guard = test::TEST_SEMAPHORE.lock();
     println!("got guard 1");
@@ -158,7 +143,7 @@ mod test {
     let child = command.spawn().unwrap();
     let mut future = ProcessFuture::new(child.id() as i32);
     let clock = std::time::Instant::now();
-    while clock.elapsed().as_secs() < 1 && future.toy_await().is_pending() {
+    while clock.elapsed().as_secs() < 1 && toy_await(future.clone()).is_pending() {
 
     }
     if Waitpid::shared().waiting_thread {
@@ -167,6 +152,7 @@ mod test {
 }
 
 #[test] fn toy_await_2() {
+    use crate::fake_waker::toy_await;
     println!("waiting on guard 2");
     let _guard = test::TEST_SEMAPHORE.lock();
     println!("got guard 2");
@@ -185,7 +171,7 @@ mod test {
     println!("toy_await_2 poll_me {:?}",poll_me);
     let clock = std::time::Instant::now();
     while clock.elapsed().as_secs() < 2 && poll_me.len() > 0 {
-        poll_me = poll_me.into_iter().filter(|f| f.clone().toy_await() == Poll::Pending).collect();
+        poll_me = poll_me.into_iter().filter(|f| toy_await(f.clone()) == Poll::Pending).collect();
     }
 
 
