@@ -1,6 +1,5 @@
 use std::sync::{Mutex, MutexGuard};
 use once_cell::sync::Lazy;
-use std::process::Command;
 use libc::waitpid;
 use std::future::Future;
 use std::pin::Pin;
@@ -117,12 +116,17 @@ impl Future for ProcessFuture {
 }
 
 #[cfg(test)]
-mod test {
-    use std::task::{Wake, Poll, Context, Waker};
-    use std::sync::{Arc, Mutex};
-    use crate::waitpid::ProcessFuture;
-    use std::pin::Pin;
-    use std::future::Future;
+pub fn __new_process_future(i: i32) -> impl Future {
+    ProcessFuture(i)
+}
+#[cfg(test)]
+pub fn __is_waiting() -> bool {
+    Waitpid::shared().waiting_thread
+}
+
+#[cfg(test)]
+pub mod test {
+    use std::sync::{Mutex};
     use once_cell::sync::Lazy;
 
 
@@ -130,29 +134,27 @@ mod test {
     pub static TEST_SEMAPHORE: Lazy<Mutex<()>> = Lazy::new(|| {
         Mutex::new(())
     });
-
 }
 
 #[test] fn toy_await_1() {
-    use crate::fake_waker::toy_await;
+    use std::process::Command;
+    use kiruna::test::test_await;
     println!("waiting on guard 1");
     let _guard = test::TEST_SEMAPHORE.lock();
     println!("got guard 1");
     let mut command = Command::new("sleep");
     command.arg("0.1");
     let child = command.spawn().unwrap();
-    let mut future = ProcessFuture::new(child.id() as i32);
-    let clock = std::time::Instant::now();
-    while clock.elapsed().as_secs() < 1 && toy_await(future.clone()).is_pending() {
-
-    }
+    let future = ProcessFuture::new(child.id() as i32);
+    test_await(future, std::time::Duration::from_secs(1));
     if Waitpid::shared().waiting_thread {
         panic!("Failed to shut down waitpid??");
     }
 }
 
 #[test] fn toy_await_2() {
-    use crate::fake_waker::toy_await;
+    use std::process::Command;
+    use kiruna::test::test_poll;
     println!("waiting on guard 2");
     let _guard = test::TEST_SEMAPHORE.lock();
     println!("got guard 2");
@@ -171,12 +173,11 @@ mod test {
     println!("toy_await_2 poll_me {:?}",poll_me);
     let clock = std::time::Instant::now();
     while clock.elapsed().as_secs() < 2 && poll_me.len() > 0 {
-        poll_me = poll_me.into_iter().filter(|f| toy_await(f.clone()) == Poll::Pending).collect();
+        poll_me = poll_me.into_iter().filter(|f| test_poll(f.clone()) == Poll::Pending).collect();
     }
 
 
     if Waitpid::shared().waiting_thread {
         panic!("Failed to shut down waitpid??");
     }
-    assert_eq!(poll_me.len(),0);
 }

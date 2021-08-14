@@ -11,7 +11,20 @@ libc = "0.2"
 
 # optional dependencies
 args_macro = {path = "args",optional=true}
+kiruna = {path = "../kiruna", optional = true}
+futures = {version = "0.3", optional = true}
+dispatchr = {path = "../dispatchr", optional = true}
 
 [features]
 # enables use of the args! macro
 args = ["args_macro"]
+# enables reading of process output
+output = ["kiruna/stream_with_dispatch","futures","dispatchr"]
+sudo = ["kiruna/stream_with_dispatch"]
+
+[dev-dependencies.kiruna]
+path = "../kiruna"
+features = ["test"]
+
+[dev-dependencies]
+dispatchr = {path = "../dispatchr"}
