@@ -26,5 +26,3 @@ sudo = ["kiruna/stream_with_dispatch"]
 path = "../kiruna"
 features = ["test"]
 
-[dev-dependencies]
-dispatchr = {path = "../dispatchr"}

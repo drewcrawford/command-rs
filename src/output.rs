@@ -20,13 +20,13 @@ pub struct Output {
 }
 
 impl Output {
-    pub(crate) async fn from_child<'a>(child: Child,options:OSReadOptions<'a>) -> Output {
+    pub(crate) async fn from_child<'a,O: Into<OSReadOptions<'a>> + Clone>(child: Child,options:O) -> Output {
         use std::os::unix::process::ExitStatusExt;
         use std::os::unix::io::IntoRawFd;
         //pipe input and output
         let status = ProcessFuture::new(child.id() as i32);
-        let output_future = Read::new(child.stdout.unwrap().into_raw_fd()).all(options.clone());
-        let error_future = Read::new(child.stderr.unwrap().into_raw_fd()).all(options);
+        let output_future = Read::new(child.stdout.unwrap().into_raw_fd()).all(options.clone().into());
+        let error_future = Read::new(child.stderr.unwrap().into_raw_fd()).all(options.into());
         let all = futures::join!(status,output_future,error_future);
         Output {
             status: ExitStatus::from_raw(all.0),
@@ -37,12 +37,12 @@ impl Output {
 }
 
 #[test] fn test_output() {
-    use dispatchr::{QoS,queue::global};
     use crate::Command;
+    use kiruna::Priority;
 
 
     let mut c = Command::new("echo");
-    let c2 = c.arg("foo").arg("bar").output(OSReadOptions::new(global(QoS::UserInitiated).unwrap()));
+    let c2 = c.arg("foo").arg("bar").output(Priority::Testing);
     let r = kiruna::test::test_await(c2,std::time::Duration::from_secs(1));
     assert!(r.is_ok());
     assert_eq!(r.unwrap().stdout.as_slice(), "foo bar\n".as_bytes());

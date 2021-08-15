@@ -21,13 +21,20 @@ impl Command {
         self.0.arg(arg);
         self
     }
+    pub fn args<I, S>(&mut self, args: I) -> &mut Command
+        where
+            I: IntoIterator<Item = S>,
+            S: AsRef<OsStr> {
+        self.0.args(args);
+        self
+    }
     #[cfg(feature="output")]
-    pub async fn output<'a>(&mut self, options: OSReadOptions<'a>) -> Result<Output> {
+    pub async fn output<'a,O: Into<OSReadOptions<'a>>>(&mut self, options: O) -> Result<Output> {
         use std::process::Stdio;
         self.0.stdout(Stdio::piped());
         self.0.stderr(Stdio::piped());
         let spawned = self.0.spawn()?;
-        Ok(Output::from_child(spawned,options).await)
+        Ok(Output::from_child(spawned,options.into()).await)
     }
     pub async fn status(&mut self) -> std::io::Result<ExitStatus> {
         let spawned = self.0.spawn()?;

@@ -1,9 +1,9 @@
 use std::ffi::OsStr;
 use std::process::{ExitStatus, Stdio};
 use crate::waitpid::ProcessFuture;
-use kiruna::io::stream::{OSWriteOptions};
 use std::os::unix::io::AsRawFd;
 use crate::Error;
+use kiruna::Priority;
 
 ///Type that elevates the permission to sudo.
 ///
@@ -22,14 +22,22 @@ impl Sudo {
         self.0.arg(arg);
         self
     }
-    pub async fn status<'a>(&mut self, write_options: OSWriteOptions<'a>) -> Result<ExitStatus, Error> {
+    pub fn args<I, S>(&mut self, args: I) -> &mut Self
+        where
+            I: IntoIterator<Item = S>,
+            S: AsRef<OsStr> {
+        self.0.args(args);
+        self
+    }
+
+    pub async fn status<'a>(&mut self, priority: Priority) -> Result<ExitStatus, Error> {
         self.0.stdin(Stdio::piped());
         let mut spawned = self.0.spawn()?;
         let mut password_vec = self.1.clone().into_bytes();
         password_vec.push('\n' as u8);
         let password_boxed = password_vec.into_boxed_slice();
         let pipe_fd = spawned.stdin.as_ref().unwrap().as_raw_fd();
-        let write_result = kiruna::io::stream::Write::new(pipe_fd).write_boxed(password_boxed,write_options);
+        let write_result = kiruna::io::stream::Write::new(pipe_fd).write_boxed(password_boxed,priority);
         //we want to drop stdin before leaving this function, so that sudo will give up if we fail
         write_result.await?;
         drop(spawned.stdin.take());
@@ -43,7 +51,7 @@ impl Sudo {
 #[test] fn sudo() {
     let _single_file = crate::waitpid::test::TEST_SEMAPHORE.lock();
     let mut s = Sudo::new("whoami","notmypassword".to_string());
-    let future = s.status(OSWriteOptions::new(dispatchr::queue::global(dispatchr::qos::QoS::UserInitiated).unwrap()));
+    let future = s.status(Priority::UserWaiting);
     let result = kiruna::test::test_await(future, std::time::Duration::from_secs(5));
     assert_eq!(result.unwrap().code(),Some(1));
 }
