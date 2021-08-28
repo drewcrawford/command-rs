@@ -6,8 +6,6 @@ use super::waitpid::ProcessFuture;
 use kiruna::io::stream::{OSReadOptions};
 #[cfg(feature="output")]
 use crate::output::{Output};
-#[cfg(feature="output")]
-use std::io::Result;
 
 
 ///A process builder; compare with [std::process::Command]
@@ -29,12 +27,12 @@ impl Command {
         self
     }
     #[cfg(feature="output")]
-    pub async fn output<'a,O: Into<OSReadOptions<'a>>>(&mut self, options: O) -> Result<Output> {
+    pub async fn output<'a,O: Into<OSReadOptions<'a>>>(&mut self, options: O) -> std::result::Result<Output, crate::Error> {
         use std::process::Stdio;
         self.0.stdout(Stdio::piped());
         self.0.stderr(Stdio::piped());
         let spawned = self.0.spawn()?;
-        Ok(Output::from_child(spawned,options.into()).await)
+        Ok(Output::from_child(spawned,options.into()).await?)
     }
     pub async fn status(&mut self) -> std::io::Result<ExitStatus> {
         let spawned = self.0.spawn()?;

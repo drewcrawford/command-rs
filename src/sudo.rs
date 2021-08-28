@@ -37,7 +37,8 @@ impl Sudo {
         password_vec.push('\n' as u8);
         let password_boxed = password_vec.into_boxed_slice();
         let pipe_fd = spawned.stdin.as_ref().unwrap().as_raw_fd();
-        let write_result = kiruna::io::stream::Write::new(pipe_fd).write_boxed(password_boxed,priority);
+        let write_task = kiruna::io::stream::Write::new(pipe_fd);
+        let write_result = write_task.write_boxed(password_boxed,priority);
         //we want to drop stdin before leaving this function, so that sudo will give up if we fail
         write_result.await?;
         drop(spawned.stdin.take());

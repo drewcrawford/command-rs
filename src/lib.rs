@@ -11,9 +11,9 @@ mod sudo;
 #[non_exhaustive]
 #[derive(Debug)]
 pub enum Error {
-    #[cfg(feature="sudo")]
+    #[cfg(any(feature="sudo",feature="output"))]
     KirunaError(kiruna::io::stream::OSError),
-    IOError(std::io::Error)
+    IOError(std::io::Error),
 }
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -26,7 +26,7 @@ impl From<std::io::Error> for Error {
         Error::IOError(f)
     }
 }
-#[cfg(feature="sudo")]
+#[cfg(any(feature="sudo",feature="output"))]
 impl From<kiruna::io::stream::OSError> for Error {
     fn from(f: kiruna::io::stream::OSError) -> Self {
         Self::KirunaError(f)
@@ -35,6 +35,9 @@ impl From<kiruna::io::stream::OSError> for Error {
 
 pub use command::Command;
 use std::fmt::Formatter;
+
+#[cfg(feature="output")]
+pub use output::Output;
 
 #[cfg(test)] pub use waitpid::{__new_process_future,__is_waiting};
 

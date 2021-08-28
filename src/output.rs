@@ -1,15 +1,12 @@
 use std::process::{ExitStatus, Child};
 use crate::waitpid::ProcessFuture;
 use kiruna::io::stream::{Read, OSReadOptions};
-use dispatchr::data::Unmanaged;
+use crate::Error;
 
-pub struct OutputBuffer(kiruna::io::stream::Buffer);
+pub struct OutputBuffer(kiruna::io::stream::Contiguous);
 impl OutputBuffer {
     pub fn as_slice(&self) -> &[u8] {
         self.0.as_slice()
-    }
-    pub fn as_dispatch_data(&self) -> &Unmanaged {
-        self.0.as_dispatch_data()
     }
 }
 ///compare with [std::process::Output]
@@ -20,19 +17,27 @@ pub struct Output {
 }
 
 impl Output {
-    pub(crate) async fn from_child<'a,O: Into<OSReadOptions<'a>> + Clone>(child: Child,options:O) -> Output {
+    pub(crate) async fn from_child<'a,O: Into<OSReadOptions<'a>> + Clone>(child: Child,options:O) -> Result<Output,Error> {
         use std::os::unix::process::ExitStatusExt;
         use std::os::unix::io::IntoRawFd;
         //pipe input and output
         let status = ProcessFuture::new(child.id() as i32);
-        let output_future = Read::new(child.stdout.unwrap().into_raw_fd()).all(options.clone().into());
-        let error_future = Read::new(child.stderr.unwrap().into_raw_fd()).all(options.into());
-        let all = futures::join!(status,output_future,error_future);
-        Output {
-            status: ExitStatus::from_raw(all.0),
-            stdout: OutputBuffer(all.1),
-            stderr: OutputBuffer(all.2)
-        }
+        let output_task = Read::new(child.stdout.unwrap().into_raw_fd());
+        let error_task = Read::new(child.stderr.unwrap().into_raw_fd());
+        let output_future = output_task.all(options.clone().into());
+        let error_future = error_task.all(options.into());
+        let joined_io = kiruna::join::try_join2(output_future,error_future);
+
+        let all = kiruna::join::join2(status,joined_io);
+
+        let result = all.await;
+        let nonerr = result.1.map_err(|e| e.merge())?;
+
+        Ok(Output {
+            status: ExitStatus::from_raw(result.0),
+            stdout: OutputBuffer(nonerr.0.as_contiguous()),
+            stderr: OutputBuffer(nonerr.1.as_contiguous())
+        })
     }
 }
 
