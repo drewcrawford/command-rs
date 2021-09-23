@@ -3,7 +3,7 @@ use crate::waitpid::ProcessFuture;
 use kiruna::io::stream::{Read, OSReadOptions};
 use crate::Error;
 
-pub struct OutputBuffer(kiruna::io::stream::Contiguous);
+pub struct OutputBuffer(kiruna::io::stream::ReadContiguousBuffer);
 impl OutputBuffer {
     pub fn as_slice(&self) -> &[u8] {
         self.0.as_slice()
@@ -36,8 +36,8 @@ impl Output {
 
         Ok(Output {
             status: ExitStatus::from_raw(result.0),
-            stdout: OutputBuffer(nonerr.0.as_contiguous()),
-            stderr: OutputBuffer(nonerr.1.as_contiguous())
+            stdout: OutputBuffer(nonerr.0.into_contiguous()),
+            stderr: OutputBuffer(nonerr.1.into_contiguous())
         })
     }
 }

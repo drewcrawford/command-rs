@@ -18,8 +18,8 @@ dispatchr = {path = "../dispatchr", optional = true}
 # enables use of the args! macro
 args = ["args_macro"]
 # enables reading of process output
-output = ["kiruna/stream_with_dispatch","kiruna/join","dispatchr"]
-sudo = ["kiruna/stream_with_dispatch"]
+output = ["kiruna/io_stream","kiruna/join","dispatchr"]
+sudo = ["kiruna/io_stream"]
 
 [dev-dependencies.kiruna]
 path = "../kiruna"
