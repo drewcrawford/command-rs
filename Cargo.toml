@@ -14,6 +14,9 @@ args_macro = {path = "args",optional=true}
 kiruna = {path = "../kiruna", optional = true}
 dispatchr = {path = "../dispatchr", optional = true}
 
+[target.'cfg(target_os="windows")'.dependencies]
+winbindings = {path = "winbindings"}
+
 [features]
 # enables use of the args! macro
 args = ["args_macro"]
@@ -24,4 +27,6 @@ sudo = ["kiruna/io_stream"]
 [dev-dependencies.kiruna]
 path = "../kiruna"
 features = ["test"]
+
+
 

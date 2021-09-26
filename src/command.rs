@@ -1,6 +1,5 @@
 use std::ffi::OsStr;
 use std::process::{ExitStatus};
-use super::waitpid::ProcessFuture;
 
 #[cfg(feature="output")]
 use kiruna::io::stream::{OSReadOptions};
@@ -37,8 +36,12 @@ impl Command {
     }
     pub async fn status(&mut self) -> Result<ExitStatus, Error> {
         let spawned = self.0.spawn()?;
-        let future = ProcessFuture::new(spawned.id() as i32);
+        use crate::waitpid::ProcessFuture;
+        let future = ProcessFuture::new(spawned.id());
+        #[cfg(target_os="macos")]
         use std::os::unix::process::ExitStatusExt;
+        #[cfg(target_os = "windows")]
+        use std::os::windows::process::ExitStatusExt;
         Ok(ExitStatus::from_raw(future.await))
     }
 }

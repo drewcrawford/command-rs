@@ -40,7 +40,6 @@ use std::fmt::Formatter;
 #[cfg(feature="output")]
 pub use output::Output;
 
-#[cfg(test)] pub use waitpid::{__new_process_future,__is_waiting};
 
 pub use status::ExitStatus;
 
