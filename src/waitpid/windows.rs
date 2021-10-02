@@ -170,16 +170,25 @@ fn launch_worker(move_semaphore: Arc<WinSemaphore>) {
                 //wakeup from semaphore, look for new handles
                 //safe because WE ARE THE WORKER, of course it was initialized
                 let lock = unsafe{WORKER.get_unchecked()}.lock().unwrap();
-                for pid in lock.as_ref().unwrap().pids.keys() {
-                    let entry = handles.entry(*pid);
-                    entry.or_insert_with(|| {
-                        let handle = ProcessHandle::new(*pid);
-                        //we use this as an identifier, but we don't need windows open/close semantics.
-                        //Dont' want to use the pid, because we won't have that at lookup time
-                        let raw_handle = handle.0.0;
-                        unhandles.insert(raw_handle, *pid);
-                        handle
-                    });
+                for (pid,pollstate) in lock.as_ref().unwrap().pids {
+                    match pollstate {
+                        PollState::Notify(_) => {
+                            let entry = handles.entry(*pid);
+                            entry.or_insert_with(|| {
+                                let handle = ProcessHandle::new(*pid);
+                                //we use this as an identifier, but we don't need windows open/close semantics.
+                                //Dont' want to use the pid, because we won't have that at lookup time
+                                let raw_handle = handle.0.0;
+                                unhandles.insert(raw_handle, *pid);
+                                handle
+                            });
+                        }
+                        PollState::Done(_) => {
+                            //this case can be ignored for the purposes of creating new handles, we're just
+                            //waiting on somebody to poll it.
+                            //todo: This could potentially be separated into a different structure, not sure if worth it
+                        }
+                    }
                 }
             }
             else if r.0 < WAIT_OBJECT_0.0 + objects.len() as u32 {
@@ -194,7 +203,7 @@ fn launch_worker(move_semaphore: Arc<WinSemaphore>) {
                 let mut return_code = MaybeUninit::uninit();
                 use winbindings::Windows::Win32::System::Threading::GetExitCodeProcess;
                 let r = unsafe{ GetExitCodeProcess(handle.0, return_code.assume_init_mut())};
-                println!("D");
+                println!("D: {}",pid);
                 assert!(r.0 != 0);
                 println!("E");
                 //we are the worker, right?  The worker was certainly intialized
@@ -244,9 +253,9 @@ impl Future for ProcessFuture {
     type Output = u32; //on windows, we use u32 for return code
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        println!("poll");
+        println!("poll {}",self.0);
         let mut lock = launch_worker_if_needed();
-        println!("poll got lock");
+        println!("poll got lock {}",self.0);
         match lock.pids.entry(self.0) {
             Entry::Occupied(mut occupied) => {
                 println!("poll occupied");
