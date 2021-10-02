@@ -37,7 +37,11 @@ impl Command {
     pub async fn status(&mut self) -> Result<ExitStatus, Error> {
         let spawned = self.0.spawn()?;
         use crate::waitpid::ProcessFuture;
-        let future = ProcessFuture::new(spawned.id());
+        #[cfg(target_os = "macos")]
+        type Pid = i32;
+        #[cfg(target_os = "windows")]
+        type Pid = u32;
+        let future = ProcessFuture::new(spawned.id() as Pid);
         #[cfg(target_os="macos")]
         use std::os::unix::process::ExitStatusExt;
         #[cfg(target_os = "windows")]

@@ -7,3 +7,5 @@ mod windows;
 #[cfg(target_os="windows")]
 pub (crate) use windows::ProcessFuture;
 
+#[cfg(all(target_os="macos",test))]
+pub (crate) use macos::test;

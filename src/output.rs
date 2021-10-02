@@ -20,12 +20,11 @@ pub struct Output {
 
 impl Output {
     pub(crate) async fn from_child<'a,O: Into<OSOptions<'a>> + Clone>(child: Child,options:O) -> Result<Output,Error> {
-        #[cfg(not(any(target_os = "windows",target_os="mac")))]
+        #[cfg(not(any(target_os = "windows",target_os="macos")))]
         complie_error!("Unsupported");
 
         #[cfg(target_os = "macos")]
         let (status_arg, output_arg, error_arg) = {
-            use std::os::unix::process::ExitStatusExt;
             use std::os::unix::io::IntoRawFd;
             let status_arg = child.id() as i32;
             let output_arg = child.stdout.unwrap().into_raw_fd();
@@ -65,8 +64,6 @@ impl Output {
 }
 #[cfg(test)]
 mod test {
-    use crate::Command;
-    use kiruna::Priority;
 
     //note that 'echo' is builtin on windows...
     #[cfg(target_os = "macos")]
