@@ -7,6 +7,9 @@ mod output;
 mod sudo;
 mod status;
 
+#[cfg(target_os = "windows")]
+use winbindings::Windows::Win32::System::Diagnostics::Debug::WIN32_ERROR;
+
 
 #[non_exhaustive]
 #[derive(Debug)]
@@ -15,6 +18,8 @@ pub enum Error {
     KirunaError(kiruna::io::stream::OSError),
     IOError(std::io::Error),
     StatusError(i32),
+    #[cfg(target_os="windows")]
+    WinError(WIN32_ERROR)
 }
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
