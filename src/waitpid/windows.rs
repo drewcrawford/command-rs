@@ -93,6 +93,7 @@ impl Drop for ProcessHandle {
     }
 }
 
+#[derive(Debug)]
 struct WorkerInfoLock(MutexGuard<'static, Option<WorkerInfo>>);
 impl Deref for WorkerInfoLock {
     type Target = WorkerInfo;
@@ -106,46 +107,38 @@ impl DerefMut for WorkerInfoLock {
         self.0.as_mut().unwrap()
     }
 }
-fn launch_worker_if_needed() -> WorkerInfoLock {
-    println!("launch_worker_if_needed");
+fn get_worker() -> WorkerInfoLock {
     let mut lock = WORKER.get_or_init(|| {
         println!("launch_worker_if_needed make WORKER");
         Mutex::new(None)
     }
     ).lock().unwrap();
-    println!("launch_worker_if_needed got lock");
-
     if lock.is_none() {
-        println!("launch_worker_if_needed is_none()");
-
         let win_semaphore = Arc::new(WinSemaphore::new());
-
-        //move into thread
-        let move_semaphore = win_semaphore.clone();
-
         *lock = Some(WorkerInfo {
             pids: HashMap::new(),
             win_semaphore,
-            thread_launched: true,
+            thread_launched: false,
         });
-        launch_worker(move_semaphore);
     }
-    else if !lock.as_ref().unwrap().thread_launched {
+    WorkerInfoLock(lock)
+}
+fn launch_worker_if_needed(lock: WorkerInfoLock) {
+    if !lock.thread_launched{
         println!("launch_worker_if_needed not launched");
         //move into thread
-        let move_semaphore = lock.as_ref().unwrap().win_semaphore.clone();
-        lock.as_mut().unwrap().thread_launched = true;
-        launch_worker(move_semaphore)
+        launch_worker(lock)
     }
     else {
         println!("lock is {:?}",lock);
     }
     println!("launch_worker_if_needed return");
-    WorkerInfoLock(lock)
 }
-fn launch_worker(move_semaphore: Arc<WinSemaphore>) {
+fn launch_worker(mut lock: WorkerInfoLock) {
     println!("launch_worker");
-    let handle = std::thread::spawn(move || {
+    let move_semaphore = lock.win_semaphore.clone();
+    lock.thread_launched = true;
+    let _handle = std::thread::spawn(move || {
         println!("launch_worker thread spawn");
 
         use winbindings::Windows::Win32::System::Threading::{WaitForMultipleObjects,WAIT_OBJECT_0};
@@ -253,9 +246,9 @@ impl Future for ProcessFuture {
     type Output = u32; //on windows, we use u32 for return code
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        println!("poll {}",self.0);
-        let mut lock = launch_worker_if_needed();
-        println!("poll got lock {}",self.0);
+        println!("poll");
+        let mut lock = get_worker();
+        println!("poll got lock");
         match lock.pids.entry(self.0) {
             Entry::Occupied(mut occupied) => {
                 println!("poll occupied");
@@ -264,6 +257,7 @@ impl Future for ProcessFuture {
                         println!("poll notify");
                         *occupied.get_mut() = PollState::Notify(cx.waker().clone());
                         println!("poll notify set");
+                        launch_worker_if_needed(lock);
                         Poll::Pending
 
                     }
@@ -283,6 +277,7 @@ impl Future for ProcessFuture {
 
                 assert!(r.0 != 0, "{:?}",unsafe{GetLastError()});
                 println!("poll vacant 3");
+                launch_worker_if_needed(lock);
                 Poll::Pending
             }
         }
