@@ -1,6 +1,8 @@
 /**
-command-rs is an experimental async API for [std::process::Command].  This crate uses the [Kiruna](https://github.com/drewcrawford/kiruna) async executor,
-and can be considered the implementation of the [Kiruna manifesto](https://github.com/drewcrawford/kiruna) in the context of processes.
+command-rs is an experimental async API for [std::process::Command].
+
+For IO, this crate uses the [Kiruna](https://github.com/drewcrawford/kiruna) async library,
+and it can be considered the implementation of the [Kiruna manifesto](https://github.com/drewcrawford/kiruna) in the context of processes.
 
 A quick comparison of alternative crates:
 

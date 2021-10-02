@@ -34,7 +34,8 @@ impl Command {
         let spawned = self.0.spawn()?;
         Ok(Output::from_child(spawned,options.into()).await?)
     }
-    pub async fn status(&mut self, priority: kiruna::Priority) -> Result<ExitStatus, Error> {
+    pub async fn status(&mut self, _priority: kiruna::Priority) -> Result<ExitStatus, Error> {
+        //todo: use priority
         let spawned = self.0.spawn()?;
         use crate::waitpid::ProcessFuture;
         #[cfg(target_os = "macos")]
