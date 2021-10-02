@@ -2,7 +2,7 @@ use std::ffi::OsStr;
 use std::process::{ExitStatus};
 
 #[cfg(feature="output")]
-use kiruna::io::stream::{OSReadOptions};
+use kiruna::io::stream::read::OSOptions;
 #[cfg(feature="output")]
 use crate::output::{Output};
 use crate::Error;
@@ -27,7 +27,7 @@ impl Command {
         self
     }
     #[cfg(feature="output")]
-    pub async fn output<'a,O: Into<OSReadOptions<'a>>>(&mut self, options: O) -> std::result::Result<Output, crate::Error> {
+    pub async fn output<'a,O: Into<OSOptions<'a>>>(&mut self, options: O) -> std::result::Result<Output, crate::Error> {
         use std::process::Stdio;
         self.0.stdout(Stdio::piped());
         self.0.stderr(Stdio::piped());
