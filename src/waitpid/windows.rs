@@ -163,7 +163,7 @@ fn launch_worker(mut lock: WorkerInfoLock) {
                 //wakeup from semaphore, look for new handles
                 //safe because WE ARE THE WORKER, of course it was initialized
                 let lock = unsafe{WORKER.get_unchecked()}.lock().unwrap();
-                for (pid,pollstate) in lock.as_ref().unwrap().pids {
+                for (pid,pollstate) in &lock.as_ref().unwrap().pids {
                     match pollstate {
                         PollState::Notify(_) => {
                             let entry = handles.entry(*pid);
