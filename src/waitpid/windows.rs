@@ -41,7 +41,9 @@ impl WinSemaphore {
 impl Drop for WinSemaphore {
     fn drop(&mut self) {
         let r = unsafe{ CloseHandle(self.0)};
-        assert!(r.0 != 0)
+        println!("a");
+        assert!(r.0 != 0);
+        println!("b");
     }
 }
 
@@ -82,7 +84,9 @@ impl ProcessHandle {
 impl Drop for ProcessHandle {
     fn drop(&mut self) {
         let r = unsafe{ CloseHandle(self.0)};
+        println!("c");
         assert!(r.0 != 0);
+        println!("d");
     }
 }
 
@@ -166,7 +170,9 @@ fn launch_worker(move_semaphore: Arc<WinSemaphore>) {
                 let mut return_code = MaybeUninit::uninit();
                 use winbindings::Windows::Win32::System::Threading::GetExitCodeProcess;
                 let r = unsafe{ GetExitCodeProcess(handle.0, return_code.assume_init_mut())};
+                println!("e");
                 assert!(r.0 != 0);
+                println!("f");
                 //we are the worker, right?  The worker was certainly intialized
 
                 let mut lock = unsafe{ WORKER.get_unchecked()}.lock().unwrap();
@@ -174,16 +180,19 @@ fn launch_worker(move_semaphore: Arc<WinSemaphore>) {
                 let return_code = unsafe { return_code.assume_init()};
 
                 let entry = lock.as_mut().unwrap().pids.entry(pid);
+                println!("g");
                 let mut occupied = match entry {
                     Entry::Occupied(o) => {o}
                     Entry::Vacant(_) => {unreachable!()}
                 };
                 let mut swapped = PollState::Done(return_code);
                 std::mem::swap(&mut swapped, occupied.get_mut());
+                println!("h");
                 let waker = match swapped {
                     PollState::Notify(waker) => {waker}
                     PollState::Done(_) => {unreachable!()}
                 };
+                println!("i");
 
                 waker.wake();
 
@@ -196,6 +205,7 @@ fn launch_worker(move_semaphore: Arc<WinSemaphore>) {
             }
             else {
                 let last_error = unsafe{ GetLastError()};
+                println!("j");
                 panic!("Unexpected response from WaitForMultipleObjects {:?}, last error: {:?}",r,last_error);
             }
 
@@ -224,6 +234,7 @@ impl Future for ProcessFuture {
                 vacant.insert(PollState::Notify(cx.waker().clone()));
                 use winbindings::Windows::Win32::System::Threading::ReleaseSemaphore;
                 let r = unsafe{ ReleaseSemaphore(lock.win_semaphore.0, 1, std::ptr::null_mut())};
+                println!("k");
                 assert!(r.0 != 0);
                 Poll::Pending
             }
