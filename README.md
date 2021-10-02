@@ -1,5 +1,4 @@
-/**
-command-rs is an experimental async API for [std::process::Command].  This crate uses the [Kiruna](https://github.com/drewcrawford/kiruna) async executor,
+command-rs is an experimental async API for [std::process::Command](https://doc.rust-lang.org/std/process/struct.Command.html).  This crate uses the [Kiruna](https://github.com/drewcrawford/kiruna) async executor,
 and can be considered the implementation of the [Kiruna manifesto](https://github.com/drewcrawford/kiruna) in the context of processes.
 
 A quick comparison of alternative crates:
@@ -34,60 +33,3 @@ the right to adopt that implementation in the future if it turns out there is so
 
 However, I tried it, and launching a process is in general a heavy operation, the overhead of everything else is negligible so you might as well
 do something portable.  On supported platforms, `waitpid` is currently used.
-
-*/
-mod command;
-mod waitpid;
-
-#[cfg(feature="output")]
-mod output;
-#[cfg(feature="sudo")]
-mod sudo;
-mod status;
-
-#[cfg(target_os = "windows")]
-use winbindings::Windows::Win32::System::Diagnostics::Debug::WIN32_ERROR;
-
-
-#[non_exhaustive]
-#[derive(Debug)]
-pub enum Error {
-    #[cfg(any(feature="sudo",feature="output"))]
-    KirunaError(kiruna::io::stream::OSError),
-    IOError(std::io::Error),
-    StatusError(i32),
-    #[cfg(target_os="windows")]
-    WinError(WIN32_ERROR)
-}
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}",self))
-    }
-}
-impl std::error::Error for Error {}
-impl From<std::io::Error> for Error {
-    fn from(f: std::io::Error) -> Self {
-        Error::IOError(f)
-    }
-}
-#[cfg(any(feature="sudo",feature="output"))]
-impl From<kiruna::io::stream::OSError> for Error {
-    fn from(f: kiruna::io::stream::OSError) -> Self {
-        Self::KirunaError(f)
-    }
-}
-
-pub use command::Command;
-use std::fmt::Formatter;
-
-#[cfg(feature="output")]
-pub use output::Output;
-
-
-pub use status::ExitStatus;
-
-#[cfg(test)] pub fn test_is_present() {}
-#[cfg(feature="sudo")] pub use sudo::Sudo;
-
-
-
