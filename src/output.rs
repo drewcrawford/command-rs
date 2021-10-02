@@ -64,12 +64,12 @@ impl Output {
 }
 #[cfg(test)]
 mod test {
+    use crate::Command;
+    use kiruna::Priority;
 
     //note that 'echo' is builtin on windows...
     #[cfg(target_os = "macos")]
     #[test] fn test_output() {
-        use crate::Command;
-        use kiruna::Priority;
 
 
         let mut c = Command::new("echo");
@@ -80,6 +80,7 @@ mod test {
 
     #[cfg(target_os = "windows")]
     #[test] fn test_output() {
+
         let mut c = Command::new("ipconfig");
         let c2 = c.output(Priority::Testing);
         let r = kiruna::test::test_await(c2,std::time::Duration::from_secs(3));
