@@ -128,7 +128,6 @@ fn launch_worker(mut lock: WorkerInfoLock) {
     let move_semaphore = lock.win_semaphore.clone();
     lock.thread_launched = true;
     let _handle = std::thread::spawn(move || {
-
         use winbindings::Windows::Win32::System::Threading::{WaitForMultipleObjects,WAIT_OBJECT_0};
         //the assumption here is that we might get polled a lot, so we want a fast way to look at a pid
         //and evaluate it as seen/not seen
