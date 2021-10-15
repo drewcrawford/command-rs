@@ -42,9 +42,7 @@ impl WinSemaphore {
 impl Drop for WinSemaphore {
     fn drop(&mut self) {
         let r = unsafe{ CloseHandle(self.0)};
-        println!("a");
         assert!(r.0 != 0);
-        println!("b");
     }
 }
 
@@ -87,9 +85,7 @@ impl ProcessHandle {
 impl Drop for ProcessHandle {
     fn drop(&mut self) {
         let r = unsafe{ CloseHandle(self.0)};
-        println!("c");
         assert!(r.0 != 0);
-        println!("d");
     }
 }
 
@@ -109,7 +105,6 @@ impl DerefMut for WorkerInfoLock {
 }
 fn get_worker() -> WorkerInfoLock {
     let mut lock = WORKER.get_or_init(|| {
-        println!("launch_worker_if_needed make WORKER");
         Mutex::new(None)
     }
     ).lock().unwrap();
@@ -125,21 +120,14 @@ fn get_worker() -> WorkerInfoLock {
 }
 fn launch_worker_if_needed(lock: WorkerInfoLock) {
     if !lock.thread_launched{
-        println!("launch_worker_if_needed not launched");
         //move into thread
         launch_worker(lock)
     }
-    else {
-        println!("lock is {:?}",lock);
-    }
-    println!("launch_worker_if_needed return");
 }
 fn launch_worker(mut lock: WorkerInfoLock) {
-    println!("launch_worker");
     let move_semaphore = lock.win_semaphore.clone();
     lock.thread_launched = true;
     let _handle = std::thread::spawn(move || {
-        println!("launch_worker thread spawn");
 
         use winbindings::Windows::Win32::System::Threading::{WaitForMultipleObjects,WAIT_OBJECT_0};
         //the assumption here is that we might get polled a lot, so we want a fast way to look at a pid
@@ -148,7 +136,6 @@ fn launch_worker(mut lock: WorkerInfoLock) {
         //back from raw handle to pid, this gives a fast way to drop the handle
         let mut unhandles = HashMap::new();
         loop {
-            println!("launch_worker thread loop");
             //build our object list
             let mut objects = Vec::with_capacity(handles.len() + 1);
             objects.push(move_semaphore.0);
@@ -157,9 +144,7 @@ fn launch_worker(mut lock: WorkerInfoLock) {
             }
             let r = unsafe{ WaitForMultipleObjects(objects.len() as u32, (&objects).as_ptr(), false, u32::MAX)};
             //wait complete!
-            println!("A");
             if r == WAIT_OBJECT_0 {
-                println!("B");
                 //wakeup from semaphore, look for new handles
                 //safe because WE ARE THE WORKER, of course it was initialized
                 let lock = unsafe{WORKER.get_unchecked()}.lock().unwrap();
@@ -185,7 +170,6 @@ fn launch_worker(mut lock: WorkerInfoLock) {
                 }
             }
             else if r.0 < WAIT_OBJECT_0.0 + objects.len() as u32 {
-                println!("C");
                 //some other object, e.g. process exit
                 let index = (r.0 - WAIT_OBJECT_0.0) as usize;
                 let raw_handle = objects[index].0;
@@ -196,9 +180,7 @@ fn launch_worker(mut lock: WorkerInfoLock) {
                 let mut return_code = MaybeUninit::uninit();
                 use winbindings::Windows::Win32::System::Threading::GetExitCodeProcess;
                 let r = unsafe{ GetExitCodeProcess(handle.0, return_code.assume_init_mut())};
-                println!("D: {}",pid);
                 assert!(r.0 != 0);
-                println!("E");
                 //we are the worker, right?  The worker was certainly intialized
 
                 let mut lock = unsafe{ WORKER.get_unchecked()}.lock().unwrap();
@@ -206,19 +188,16 @@ fn launch_worker(mut lock: WorkerInfoLock) {
                 let return_code = unsafe { return_code.assume_init()};
 
                 let entry = lock.as_mut().unwrap().pids.entry(pid);
-                println!("F");
                 let mut occupied = match entry {
                     Entry::Occupied(o) => {o}
                     Entry::Vacant(_) => {unreachable!()}
                 };
                 let mut swapped = PollState::Done(return_code);
                 std::mem::swap(&mut swapped, occupied.get_mut());
-                println!("G");
                 let waker = match swapped {
                     PollState::Notify(waker) => {waker}
                     PollState::Done(_) => {unreachable!()}
                 };
-                println!("H");
 
                 waker.wake();
 
@@ -230,9 +209,7 @@ fn launch_worker(mut lock: WorkerInfoLock) {
                 }
             }
             else {
-                println!("I");
                 let last_error = unsafe{ GetLastError()};
-                println!("J");
                 panic!("Unexpected response from WaitForMultipleObjects {:?}, last error: {:?}",r,last_error);
             }
 
@@ -246,37 +223,28 @@ impl Future for ProcessFuture {
     type Output = u32; //on windows, we use u32 for return code
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        println!("poll");
         let mut lock = get_worker();
-        println!("poll got lock");
         match lock.pids.entry(self.0) {
             Entry::Occupied(mut occupied) => {
-                println!("poll occupied");
                 match occupied.get() {
                     PollState::Notify(_) => {
-                        println!("poll notify");
                         *occupied.get_mut() = PollState::Notify(cx.waker().clone());
-                        println!("poll notify set");
                         launch_worker_if_needed(lock);
                         Poll::Pending
 
                     }
                     PollState::Done(code) => {
-                        println!("poll done");
                         Poll::Ready(*code)
                     }
                 }
             }
             Entry::Vacant(vacant) => {
-                println!("poll vacant");
 
                 vacant.insert(PollState::Notify(cx.waker().clone()));
                 use winbindings::Windows::Win32::System::Threading::ReleaseSemaphore;
                 let r = unsafe{ ReleaseSemaphore(lock.win_semaphore.0, 1, std::ptr::null_mut())};
-                println!("poll vacant 2");
 
                 assert!(r.0 != 0, "{:?}",unsafe{GetLastError()});
-                println!("poll vacant 3");
                 launch_worker_if_needed(lock);
                 Poll::Pending
             }
@@ -289,6 +257,7 @@ impl Future for ProcessFuture {
 mod tests {
     use std::process::Command;
     use crate::waitpid::ProcessFuture;
+    use std::task::Poll;
 
     #[test] fn waidpid() {
         let child = Command::new("systeminfo").spawn().unwrap();
@@ -296,5 +265,43 @@ mod tests {
         let future = ProcessFuture::new(item);
         kiruna::test::test_await(future, std::time::Duration::from_secs(10));
 
+    }
+    #[test] fn wait_multi() {
+        let child1 = Command::new("powercfg.exe").spawn().unwrap();
+        let item1 = child1.id();
+        let future1 = ProcessFuture::new(item1);
+
+        let child2 = Command::new("powercfg.exe").spawn().unwrap();
+        let item2 = child2.id();
+        let future2 = ProcessFuture::new(item2);
+
+        let child3 = Command::new("powercfg.exe").spawn().unwrap();
+        let item3 = child3.id();
+        let future3 = ProcessFuture::new(item3);
+
+        //todo: consider moving this multipoll implementation to kiruna::test
+        let mut futures = [Some(future1),Some(future2),Some(future3)];
+        let mut outputs = [None; 3];
+        loop {
+            let mut did_something = false;
+            for i in 0..futures.len() {
+                let future = match &mut futures[i] {
+                    Some(v) => v,
+                    None => {continue;}
+                };
+                did_something = true;
+                let result = kiruna::test::test_poll(future);
+                match result {
+                    Poll::Ready(r) => {
+                        futures[i] = None;
+                        outputs[i] = Some(r);
+                    }
+                    Poll::Pending => {
+                        //go around again
+                    }
+                }
+            }
+            if !did_something { break; }
+        }
     }
 }
